@@ -1,0 +1,170 @@
+#include<SoftwareSerial.h>
+#include<Servo.h>
+#define trigpin1 12
+#define echopin1 13
+#define led1 5
+#define led2 6
+#define led3 7 
+#define led4 8
+SoftwareSerial Gsm(2,3);
+Servo Servol;
+int pirPin=4;
+int pirState=0;
+int calibrationTime = 10;
+const unsigned long eventTime_1 = 1000;
+const unsigned long eventTime_2 = 5000;
+
+unsigned long previousTime_1 = 0;
+unsigned long previousTime_2 = 0;
+char incomingByte;
+String inputString;
+void setup(){
+//put you setup code here,to run code:
+Serial.begin(9600);
+Gsm.begin(9600);
+Servol.attach(9);
+delay(1000);
+Servol.write(0);
+delay(1000);
+Servol.detach();
+pinMode(trigpin1,OUTPUT);
+pinMode(echopin1,INPUT);
+pinMode(pirPin,INPUT);
+pinMode(led1,OUTPUT);
+pinMode(led2,OUTPUT);
+pinMode(led3,OUTPUT);
+pinMode(led4,OUTPUT);
+digitalWrite(led1, LOW);
+digitalWrite(led2, LOW);
+digitalWrite(led3, LOW);
+digitalWrite(led4, LOW);
+while(!Gsm.available())
+{
+  Gsm.println("AT");
+  delay(1000);
+  Serial.println("connecting...");
+}
+Serial.println("connected!");
+Gsm.println("AT+CMGF=1");
+delay(1000);
+Gsm.println("AT+CNMI=1,,2,0,0,0");
+delay(1000);
+delay(calibrationTime * 1000); //10 Second Delay
+Serial.println("SMART DUSTBIN IS Ready TO WORK");
+}
+
+bool flag = false;
+bool flagl = false;
+long Distancel, Duration1;
+
+void loop() {
+  // put your main code here, to run repeatedly:
+  unsigned long currentTime = millis();
+  
+  if ( currentTime - previousTime_1 >= eventTime_1 )
+  {
+    Serial.println("PIR");
+    pirState = digitalRead(pirPin);
+    if (pirState == HIGH)
+    {
+      Servol.attach(9);
+      Serial.println("OPEN LID");
+      Servol.write(180);
+      send_msg("Dustbin is Full");
+      flag = true;
+    }
+    else if (pirState == LOW){
+      Serial.println("Close LID");
+      if (flag == false)
+      {
+        Servol.write(0);
+        delay (15);
+      }
+      else if(flag == true)
+      {
+      Servol.write(0);
+      delay(15);
+      flag = false;
+      }
+     }
+     previousTime_1 = currentTime;
+   }
+   
+if ( currentTime -  previousTime_2 >= eventTime_2 )
+{
+  
+  Serial.println("Ultrasonic");
+  digitalWrite(trigpin1, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigpin1, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigpin1, LOW);
+  Duration1 = pulseIn(echopin1, HIGH);
+  Distancel = (Duration1 / 2) / 29.1;
+  Serial.print("Distance:");
+  Serial.println (Distancel);
+
+  if ((Distancel >= 21) &&  (Distancel<=28))
+  {
+
+     Serial.println("level 1");
+     digitalWrite(led1, HIGH);
+     digitalWrite(led2, LOW);
+     digitalWrite(led3, LOW);
+     digitalWrite(led4, LOW);
+     flag = false;
+  }
+  else if ((Distancel >= 15) && (Distancel <= 20))
+  {
+   Serial.println("level 2");
+   digitalWrite(led1, HIGH);
+   digitalWrite(led2, HIGH);
+   digitalWrite (led3, LOW);
+   digitalWrite(led4, LOW);
+  }
+  else if ((Distancel >= 7) && (Distancel <= 14)) 
+  {
+   Serial.println("level 3");
+   digitalWrite(led1, HIGH);
+   digitalWrite(led2, HIGH);
+   digitalWrite(led3, HIGH);
+   digitalWrite(led4, LOW);
+  }
+  else if ((Distancel >= 0) && (Distancel <= 6))
+  {
+    Serial.println("level 4");
+    digitalWrite(led1, HIGH);
+    digitalWrite(led2, HIGH);
+    digitalWrite(led3, HIGH);
+    digitalWrite(led4, HIGH);
+    if (flag == false)
+    {
+       flag = true;
+    }
+  }
+  else
+  {
+    digitalWrite(led1, LOW);
+    digitalWrite(led2, LOW);
+    digitalWrite(led3, LOW);
+    digitalWrite(led4, LOW);
+  }
+  
+  previousTime_2 = currentTime;
+ }
+}
+
+ 
+void send_msg(String msg)
+{
+  
+  delay(100);
+  Gsm.println("AT+CMGF=1"); //Sets the GSM Module in Text Mode
+  delay(1000); // Delay of 1000 milli seconds or 1 second
+  Gsm.println("AT+CMGS=\"+918296930062\"\r"); 
+  delay(1000);
+  Gsm.println("DUST BIN IS FULL");// The SMS text you want to send
+  delay(100); 
+  Gsm.println((char)26);// ASCII code of CTRL+Z
+  delay(1000);
+  }
